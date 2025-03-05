@@ -3,7 +3,7 @@ from typing import Union
 from torch.utils.data import Dataset
 from pathlib import Path
 
-from utils import get_files_from_dir, get_audio_data, split_audio, collate_fn, collate_fn_new
+from utils import get_files_from_dir, get_audio_data, split_audio, collate_fn
 
 
 class SpeechTrainDataset(Dataset):

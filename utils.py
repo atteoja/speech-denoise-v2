@@ -64,40 +64,6 @@ def collate_fn(batch):
     return inputs_batch, labels_batch
 
 
-
-
-def collate_fn_new(batch):
-    # Find max length in the batch
-    max_len = max([len(x[0]) for x in batch]) # x[0] is input sequence
-    # Prepare lists for inputs and labels
-    inputs = []
-    labels = []
-    
-    # Pad each sequence to max_len
-    for input_seq, label_seq in batch:
-        curr_len = len(input_seq)
-        print(curr_len)
-        # Calculate padding
-        pad_len = max_len - curr_len
-        
-        # Pad the sequences
-        if pad_len > 0:
-            input_padded = np.pad(input_seq, (0, pad_len), mode='constant', constant_values=0)
-            label_padded = np.pad(label_seq, (0, pad_len), mode='constant', constant_values=0)
-        else:
-            input_padded = input_seq
-            label_padded = label_seq
-            
-        inputs.append(input_padded)
-        labels.append(label_padded)
-    
-    # Convert to torch tensors
-    inputs = torch.FloatTensor(np.stack(inputs))
-    labels = torch.FloatTensor(np.stack(labels))
-    
-    return inputs, labels
-
-
 def test_utils():
     # Test get_files_from_dir_with_pathlib
     test_dir = "noisy_testset_wav"
