@@ -75,7 +75,7 @@ def train(device, model, train_loader, val_loader,
             optimizer.step()
 
             train_loss_epoch.append(loss.item())
-        
+
         model.eval()
 
         with torch.no_grad():
@@ -96,7 +96,7 @@ def train(device, model, train_loader, val_loader,
         scheduler.step()
 
         print('\n\n', f" *** Epoch {epoch:03d} ***\n Train loss: {train_loss:.3f}\n Validation loss: {val_loss:.3f}\n Learning rate: {optimizer.param_groups[0]['lr']}\n") #\n Time: {format_time(time.time() - epoch_start_time)}
-            
+
         if epoch != 0 and epoch % 2 == 0:
 
             prev_files = get_files_from_dir(checkpoint_path)
@@ -215,7 +215,7 @@ def main():
 
     unet = SmallCleanUNet(in_channels=1,
                           out_channels=1,
-                          depth=4,
+                          depth=2,
                           kernel_size=5)
     unet.to(device)
     
