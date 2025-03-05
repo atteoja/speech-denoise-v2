@@ -4,6 +4,7 @@ import pathlib
 import os
 import numpy as np
 import librosa
+import torch
 
 
 def get_files_from_dir(dir_name: Union[str, pathlib.Path]) -> List[pathlib.Path]:
@@ -40,6 +41,27 @@ def split_audio(audio_data: np.ndarray, sr: int, overlap: float = 0.25) -> List[
         segments.append(last_segment)
     
     return segments
+
+
+
+def collate_fn(batch):
+    """
+    Custom collate function for batching a list of tuples (noisy, clean) including list of segments.
+    Flatten lists into a single lists of tensors
+    """
+    
+    # Unzip batch into noisy and clean data
+    input_seq, label_seq = zip(*batch)
+
+    # Flatten the list of segments
+    input_flat = [torch.tensor(segment) for input_item in input_seq for segment in input_item]
+    label_flat = [torch.tensor(segment) for label_item in label_seq for segment in label_item]
+
+    # Stack the individual segments into tensors
+    inputs_batch = torch.stack(input_flat)
+    labels_batch = torch.stack(label_flat)
+
+    return inputs_batch, labels_batch
 
 
 def test_utils():
