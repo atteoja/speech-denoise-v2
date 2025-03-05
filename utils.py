@@ -22,9 +22,24 @@ def get_audio_files(dir_name: Union[str, pathlib.Path]) -> List[pathlib.Path]:
 
 def get_audio_data(audio_file: Union[str, pathlib.Path]) -> Tuple[np.ndarray, float]:
     """Loads and returns the audio data from the `audio_file`. """
-    # TODO add data normalization
 
-    return librosa.core.load(path=audio_file, sr=44500, mono=True) # mono=True
+    return librosa.core.load(path=audio_file, sr=16000, mono=True) # mono=True
+
+
+def split_audio(audio_data: np.ndarray, sr: int, overlap: float = 0.25) -> List[np.ndarray]:
+    """Splits the audio data into overlapping segments."""
+    segment_length = sr * 2  # 2 seconds
+    step = int(sr * overlap)  # 0.5 seconds overlap
+    segments = [audio_data[i:i + segment_length] for i in range(0, len(audio_data) - segment_length, step)]
+    
+    # Handle the last segment 
+    remaining_samples = len(audio_data) % segment_length
+    if remaining_samples > 0:
+        # remaining samples + padding
+        last_segment = np.pad(audio_data[-remaining_samples:], (0, segment_length - remaining_samples), mode='constant')
+        segments.append(last_segment)
+    
+    return segments
 
 
 def test_utils():
