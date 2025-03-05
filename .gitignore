@@ -3,3 +3,4 @@
 __pycache__/
 *.wav
 model_checkpoint/
+saved_models/

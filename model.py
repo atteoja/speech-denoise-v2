@@ -70,20 +70,23 @@ class SmallCleanUNet(nn.Module):
         super(SmallCleanUNet, self).__init__()
 
         # Encoder
-        self.encoder1 = EncoderLayer(in_channels=in_channels, out_channels=depth*in_channels, kernel_size=kernel_size)
-        self.encoder2 = EncoderLayer(in_channels=depth*in_channels, out_channels=2*depth*in_channels, kernel_size=kernel_size)
-        self.encoder3 = EncoderLayer(in_channels=2*depth*in_channels, out_channels=4*depth*in_channels, kernel_size=kernel_size)
+        self.encoder1 = EncoderLayer(in_channels= in_channels, out_channels= depth*in_channels, kernel_size= kernel_size+2)
+        self.encoder2 = EncoderLayer(in_channels= depth*in_channels, out_channels= 2*depth*in_channels, kernel_size= kernel_size+2)
+        self.encoder3 = EncoderLayer(in_channels= 2*depth*in_channels, out_channels= 4*depth*in_channels, kernel_size= kernel_size)
 
         # Bottleneck with self-attention
         #self.bottleneck = SelfAttention(embed_dim=4*depth*in_channels, num_heads=8)
-        self.bottleneck = nn.Conv1d(in_channels=4*depth*in_channels, out_channels=4*depth*in_channels, kernel_size=3, dilation=2, padding=2)
+        self.bottleneck = nn.Conv1d(in_channels= 4*depth*in_channels, out_channels= 4*depth*in_channels, kernel_size= 3, padding= 3//2)
 
         # Decoder
-        self.decoder1 = DecoderLayer(in_channels=8*depth*in_channels, out_channels=2*depth*in_channels, kernel_size=kernel_size)
-        self.decoder2 = DecoderLayer(in_channels=4*depth*in_channels, out_channels=depth*in_channels, kernel_size=kernel_size)
-        self.decoder3 = DecoderLayer(in_channels=2*depth*in_channels, out_channels=in_channels, kernel_size=kernel_size)
+        self.decoder1 = DecoderLayer(in_channels= 8*depth*in_channels, out_channels= 2*depth*in_channels, kernel_size= kernel_size)
+        self.decoder2 = DecoderLayer(in_channels= 4*depth*in_channels, out_channels= depth*in_channels, kernel_size= kernel_size+2)
+        self.decoder3 = DecoderLayer(in_channels= 2*depth*in_channels, out_channels= 2*in_channels, kernel_size= kernel_size+2)
 
-        self.conv = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=3//2)
+        self.out_conv = nn.Sequential(
+            nn.Conv1d(in_channels=2*in_channels, out_channels=2*in_channels, kernel_size=3, padding=3//2),
+            nn.Conv1d(in_channels=2*in_channels, out_channels=out_channels, kernel_size=1)
+        )
 
 
     def forward(self, x):
@@ -102,7 +105,7 @@ class SmallCleanUNet(nn.Module):
         x8 = torch.cat([x1, x7], dim=1)
         x9 = self.decoder3(x8)
 
-        out = self.conv(x9)
+        out = self.out_conv(x9)
 
         return out
 
