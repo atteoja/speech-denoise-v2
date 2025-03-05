@@ -90,7 +90,7 @@ class SmallCleanUNet(nn.Module):
 
 
     def forward(self, x):
-        x1 = self.encoder1(x)
+        x1 = self.encoder1(x.float())
         x2 = self.encoder2(x1)
         x3 = self.encoder3(x2)
 

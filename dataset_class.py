@@ -75,9 +75,21 @@ class SpeechTestDataset(Dataset):
         self.clean_test = []
 
         if not self.return_paths:
-            # Split the audio files into segments and extend the lists
-            [self.noisy_test.extend(get_audio_data(f)) for f in self.noisy_test_files]
-            [self.clean_test.extend(get_audio_data(f)) for f in self.clean_test_files]
+            for file in self.noisy_test_files:
+                audio, sr = get_audio_data(file)
+                if len(audio) < sr:
+                    print(f"Skipping {file}")
+                    continue
+                else:
+                    self.noisy_test.append(audio)
+            
+            for file in self.clean_test_files:
+                audio, sr = get_audio_data(file)
+                if len(audio) < sr:
+                    print(f"Skipping {file}")
+                    continue
+                else:
+                    self.clean_test.append(audio)
 
             del self.noisy_test_files
             del self.clean_test_files

@@ -167,27 +167,33 @@ def test(device, model, test_loader, criterion):
 
 def main():
 
+
+    # DEFINE HYPERPARAMS
+
+    training = True
+    device = None
+
+    batch_size = 16
+    epochs = 2
+    criterion = 'l1'        # l1, l2
+    optimizer = 'adam'      # adam, adamw
+    lr = 1e-3
+
+    # HYPERPARAMS END
+
+
     if torch.cuda.is_available():
         n_gpu = torch.cuda.device_count()
         device = torch.device("cuda")
         print(f"Using {n_gpu} GPU(s)")
-
-    train_dataset = SpeechTrainDataset(root_dir='.')
-
-    train_size = int(0.8 * len(train_dataset))
-    val_size = len(train_dataset) - train_size
-
-    train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
-
-    batch_size = 32
-    epochs = 1
-    criterion = 'l1'        # l1, l2
-    optimizer = 'adam'      # adam, adamw
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-
-    print("\nData loaded. Train size: ", len(train_dataset), " Val size: ", len(val_dataset), "\n")
+    elif torch.backends.mps.is_available():
+        if input("Use mps as device? (y/n): ") == "y":    
+            device = torch.device("mps")
+            print(f"Using MPS as device.")
+    
+    if device is None:
+        device = torch.device("cpu")
+        print("Using CPU.")
 
     unet = SmallCleanUNet(in_channels=1,
                           out_channels=1,
@@ -195,13 +201,28 @@ def main():
                           kernel_size=3)
     unet.to(device)
 
-    unet = train(device=device, model=unet,
-                  train_loader=train_loader,
-                  val_loader=val_loader,
-                  epochs=epochs,
-                  criterion=criterion,
-                  optimizer=optimizer,
-                  lr=1e-3)
+    # Set training = True to train the model
+    if training:
+        train_dataset = SpeechTrainDataset(root_dir='.')
+
+        train_size = int(0.8 * len(train_dataset))
+        val_size = len(train_dataset) - train_size
+
+        train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
+
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+        print("\nData loaded. Train size: ", len(train_dataset), " Val size: ", len(val_dataset), "\n")
+
+        unet = train(device=device,
+                    model=unet,
+                    train_loader=train_loader,
+                    val_loader=val_loader,
+                    epochs=epochs,
+                    criterion=criterion,
+                    optimizer=optimizer,
+                    lr=lr)
 
     test_dataset = SpeechTestDataset(root_dir='.')
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
@@ -210,9 +231,13 @@ def main():
     test_wavs_path = "test_sounds"
     if not os.path.exists(test_wavs_path):
         os.mkdir(test_wavs_path)
+    
+    for file in get_files_from_dir(test_wavs_path):
+        pathlib.Path.unlink(file)
 
     for i in range(3):
-        sf.write(f"{test_wavs_path}/test_{i+1}.wav", preds[i], sr=22250)
+        print(f"\nSaving test_{i+1}.wav\nMax: {preds[i].max()}\nMin: {preds[i].min()}")
+        sf.write(f"{test_wavs_path}/test_{i+1}.wav", preds[i], samplerate=22050)
 
 
 if __name__ == "__main__":
