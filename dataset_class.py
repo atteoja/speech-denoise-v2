@@ -10,6 +10,7 @@ class SpeechTrainDataset(Dataset):
     def __init__(self, root_dir: Union[str, Path]) -> None:
         """Pytorch Dataset class for training samples."""
 
+
         self.root_dir = Path(root_dir)
         self.load_data()
 
@@ -35,6 +36,7 @@ class SpeechTrainDataset(Dataset):
 class SpeechTestDataset(Dataset):
     def __init__(self, root_dir: Union[str, Path]) -> None:
         """Pytorch Dataset class for testing samples. """
+
         self.root_dir = Path(root_dir)
         self.load_data()
 
@@ -46,7 +48,6 @@ class SpeechTestDataset(Dataset):
 
         self.noisy_test_files = get_files_from_dir(noisy_test_dir)
         self.clean_test_files = get_files_from_dir(clean_test_dir)
- 
 
     def __len__(self) -> int:
         """Returns the length of the dataset."""

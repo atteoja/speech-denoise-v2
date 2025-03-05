@@ -13,30 +13,45 @@ import soundfile as sf
 import librosa
 from torch.optim.lr_scheduler import MultiStepLR
 
-from UNet import UNet
-#from UNet_V1 import UNet
-#from UNet_tmp import UNet
+import pathlib
+from model import SmallCleanUNet
 from dataset_class import SpeechTestDataset, SpeechTrainDataset
 from evaluation import get_psnr
-
-
-def format_time(seconds):
-    return str(timedelta(seconds=int(seconds)))
+from utils import get_files_from_dir
 
 
 def train(device, model, train_loader, val_loader,
-          epochs=200, lr=1e-3,
-          save_path="saved_models"
+          epochs=200,
+          criterion="l1",
+          optimizer="adam",
+          lr=1e-3,
+          save_path="saved_models",
+          loss_increase_min = 1e-2,
+          patience = 5
           ):
-    #training_start_time = time.time()
+
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs!")
         model = DataParallel(model)
 
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
+    if optimizer == "adam":
+        optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
+    else:
+        optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
+
+    if criterion == "l1":
+        criterion = nn.L1Loss()
+    else:
+        criterion = nn.L1Loss()
 
     scheduler = MultiStepLR(optimizer=optimizer, milestones=[100], gamma=0.1)
+
+    prev_loss = float(10000)
+    patience_counter = 0
+
+    checkpoint_path = "model_checkpoint"
+    if not os.path.exists(checkpoint_path):
+        os.makedirs(checkpoint_path)
     
     for epoch in tqdm(range(epochs)):
         #epoch_start_time = time.time()
@@ -60,7 +75,7 @@ def train(device, model, train_loader, val_loader,
             optimizer.step()
 
             train_loss_epoch.append(loss.item())
-        
+
         model.eval()
 
         with torch.no_grad():
@@ -69,6 +84,7 @@ def train(device, model, train_loader, val_loader,
                 inputs, labels = inputs.to(device), labels.to(device)
                 inputs, labels = inputs.unsqueeze(1), labels.unsqueeze(1)
                 preds = model(inputs)
+
 
                 loss = criterion(preds, labels)
 
@@ -79,11 +95,28 @@ def train(device, model, train_loader, val_loader,
 
         scheduler.step()
 
-        if (epoch + 1) % 5 == 0:
-            print('\n\n', f" *** Epoch {epoch:03d} ***\n Train loss: {train_loss:.3f}\n Validation loss: {val_loss:.3f}\n Learning rate: {optimizer.param_groups[0]['lr']}") #\n Time: {format_time(time.time() - epoch_start_time)}
-            
-    #print("Training finished.")
-    #print("Total time: ", format_time(time.time() - training_start_time))
+        print('\n\n', f" *** Epoch {epoch:03d} ***\n Train loss: {train_loss:.3f}\n Validation loss: {val_loss:.3f}\n Learning rate: {optimizer.param_groups[0]['lr']}\n") #\n Time: {format_time(time.time() - epoch_start_time)}
+
+        if epoch != 0 and epoch % 2 == 0:
+
+            prev_files = get_files_from_dir(checkpoint_path)
+            if len(prev_files) > 0:
+                for file in prev_files:
+                    pathlib.Path.unlink(file)
+
+            model_checkpoint_name = checkpoint_path + f"/model_ckpt_{epoch+1}.pth"
+            torch.save(model.state_dict(), model_checkpoint_name)
+
+        if train_loss > prev_loss or abs(train_loss - prev_loss) < loss_increase_min:
+            patience_counter += 1
+        else:
+            patience_counter = 0
+        
+        prev_loss = train_loss
+        
+        if patience_counter == patience:
+            print("Early stopping at epoch ", epoch + 1, ".")
+            break
 
     if not os.path.exists(save_path):
         os.makedirs(save_path)
@@ -92,11 +125,11 @@ def train(device, model, train_loader, val_loader,
 
     return model
 
-def test(device, model, test_loader):
-    criterion = nn.MSELoss()
+def test(device, model, test_loader, criterion):
 
     test_losses = []
     test_psnrs = []
+    predictions = []
 
     model.eval()
 
@@ -111,11 +144,15 @@ def test(device, model, test_loader):
 
             test_losses.append(loss.item())
             test_psnrs.append(get_psnr(preds.cpu(), labels.cpu()))
+            predictions.append(preds.cpu())
         
     test_loss = np.array(test_losses).mean()
     test_psnr = np.array(test_psnrs).mean()
     print(f"Test loss: {test_loss}")
     print(f"Test PSNR: {test_psnr}")
+
+    # return set of predictions
+    return predictions
 
 def collate_fn(batch):
     # Find max length in the batch
@@ -159,44 +196,52 @@ def main():
 
     train_dataset = SpeechTrainDataset(root_dir='.')
 
-    # split the dataset into train and validation
-    train_size = int(0.9 * len(train_dataset))
+    train_size = int(0.8 * len(train_dataset))
     val_size = len(train_dataset) - train_size
 
     train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
 
-    batch_size = 32  # Base batch
+    batch_size = 32
+    criterion = 'l1'
+    optimizer = 'adam'
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     test_dataset = SpeechTestDataset(root_dir='.')
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
-    print("Data loaded. Train size: ", len(train_dataset), " Val size: ", len(val_dataset), " Test size: ", len(test_dataset))
-    unet = UNet(in_channels=1,
-                 out_channels=1,
-                 init_channels=16)
+
+    print("\nData loaded. Train size: ", len(train_dataset), " Val size: ", len(val_dataset), " Test size: ", len(test_dataset), "\n")
+
+    unet = SmallCleanUNet(in_channels=1,
+                          out_channels=1,
+                          depth=2,
+                          kernel_size=5)
     unet.to(device)
     
     unet = train(device=device, model=unet,
                   train_loader=train_loader,
                   val_loader=val_loader,
                   epochs=200,
+                  criterion=criterion,
+                  optimizer=optimizer,
                   lr=1e-3)
     
     
-    test(device=device, model=unet, test_loader=test_loader)
+    test(device=device, model=unet, test_loader=test_loader, criterion=criterion)
 
 
 if __name__ == "__main__":
     main()
 
-    # load the trained model
+    """# load the trained model
     device = torch.device("cuda")
 
-    unet = UNet(in_channels=1,
-                 out_channels=1,
-                 init_channels=8) 
+    unet = SmallCleanUNet(in_channels=1,
+                          out_channels=1,
+                          depth=4,
+                          kernel_size=5)
+    
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs!")
         unet = DataParallel(unet)
@@ -218,4 +263,4 @@ if __name__ == "__main__":
             break
 
     
-    print("Model testing finished.")
+    print("Model testing finished.")"""

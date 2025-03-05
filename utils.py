@@ -21,7 +21,7 @@ def get_audio_files(dir_name: Union[str, pathlib.Path]) -> List[pathlib.Path]:
                                            if filename[-4:] == '.wav']
 
 
-def get_audio_data(audio_file: Union[str, pathlib.Path]) -> Tuple[np.ndarray, float]:
+def get_audio_data(audio_file: Union[str, pathlib.Path], sr: int = 44500) -> Tuple[np.ndarray, float]:
     """Loads and returns the audio data from the `audio_file`. """
 
     return librosa.core.load(path=audio_file, sr=16000, mono=True) # mono=True
