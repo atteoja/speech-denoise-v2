@@ -13,7 +13,7 @@ import soundfile as sf
 import librosa
 from torch.optim.lr_scheduler import MultiStepLR
 
-from UNet import UNet
+from model import SmallCleanUNet
 #from UNet_V1 import UNet
 #from UNet_tmp import UNet
 from dataset_class import SpeechTestDataset, SpeechTrainDataset
@@ -26,9 +26,11 @@ def format_time(seconds):
 
 def train(device, model, train_loader, val_loader,
           epochs=200, lr=1e-3,
-          save_path="saved_models"
+          save_path="saved_models",
+          loss_increase_min = 1e-2,
+          patience = 5
           ):
-    #training_start_time = time.time()
+
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs!")
         model = DataParallel(model)
@@ -37,6 +39,13 @@ def train(device, model, train_loader, val_loader,
     optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
 
     scheduler = MultiStepLR(optimizer=optimizer, milestones=[100], gamma=0.1)
+
+    prev_loss = float(10000)
+    patience_counter = 0
+
+    checkpoint_path = "model_checkpoint"
+    if not os.path.exists(checkpoint_path):
+        os.makedirs(checkpoint_path)
     
     for epoch in tqdm(range(epochs)):
         #epoch_start_time = time.time()
@@ -79,11 +88,22 @@ def train(device, model, train_loader, val_loader,
 
         scheduler.step()
 
-        if (epoch + 1) % 5 == 0:
-            print('\n\n', f" *** Epoch {epoch:03d} ***\n Train loss: {train_loss:.3f}\n Validation loss: {val_loss:.3f}\n Learning rate: {optimizer.param_groups[0]['lr']}") #\n Time: {format_time(time.time() - epoch_start_time)}
+        print('\n\n', f" *** Epoch {epoch:03d} ***\n Train loss: {train_loss:.3f}\n Validation loss: {val_loss:.3f}\n Learning rate: {optimizer.param_groups[0]['lr']}\n") #\n Time: {format_time(time.time() - epoch_start_time)}
             
-    #print("Training finished.")
-    #print("Total time: ", format_time(time.time() - training_start_time))
+        if epoch != 0 and epoch % 2 == 0:
+            model_checkpoint_name = checkpoint_path + f"/model_ckpt_{epoch+1}.pth"
+            torch.save(model.state_dict(), model_checkpoint_name)
+
+        if train_loss > prev_loss or abs(train_loss - prev_loss) < loss_increase_min:
+            patience_counter += 1
+        else:
+            patience_counter = 0
+        
+        prev_loss = train_loss
+        
+        if patience_counter == patience:
+            print("Early stopping at epoch ", epoch + 1, ".")
+            break
 
     if not os.path.exists(save_path):
         os.makedirs(save_path)
@@ -97,6 +117,7 @@ def test(device, model, test_loader):
 
     test_losses = []
     test_psnrs = []
+    predictions = []
 
     model.eval()
 
@@ -111,11 +132,15 @@ def test(device, model, test_loader):
 
             test_losses.append(loss.item())
             test_psnrs.append(get_psnr(preds.cpu(), labels.cpu()))
+            predictions.append(preds.cpu())
         
     test_loss = np.array(test_losses).mean()
     test_psnr = np.array(test_psnrs).mean()
     print(f"Test loss: {test_loss}")
     print(f"Test PSNR: {test_psnr}")
+
+    # return set of predictions
+    return predictions
 
 def collate_fn(batch):
     # Find max length in the batch
@@ -157,7 +182,7 @@ def main():
         device = torch.device("cuda")
         print(f"Using {n_gpu} GPU(s)")
 
-    train_dataset = SpeechTrainDataset(root_dir='.')
+    train_dataset = SpeechTrainDataset(root_dir='.', sr=22250, features=False)
 
     # split the dataset into train and validation
     train_size = int(0.9 * len(train_dataset))
@@ -170,12 +195,15 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    test_dataset = SpeechTestDataset(root_dir='.')
+    test_dataset = SpeechTestDataset(root_dir='.', sr=22250, features=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
-    print("Data loaded. Train size: ", len(train_dataset), " Val size: ", len(val_dataset), " Test size: ", len(test_dataset))
-    unet = UNet(in_channels=1,
-                 out_channels=1,
-                 init_channels=16)
+
+    print("\nData loaded. Train size: ", len(train_dataset), " Val size: ", len(val_dataset), " Test size: ", len(test_dataset), "\n")
+
+    unet = SmallCleanUNet(in_channels=1,
+                          out_channels=1,
+                          depth=4,
+                          kernel_size=5)
     unet.to(device)
     
     unet = train(device=device, model=unet,
@@ -191,12 +219,14 @@ def main():
 if __name__ == "__main__":
     main()
 
-    # load the trained model
+    """# load the trained model
     device = torch.device("cuda")
 
-    unet = UNet(in_channels=1,
-                 out_channels=1,
-                 init_channels=8) 
+    unet = SmallCleanUNet(in_channels=1,
+                          out_channels=1,
+                          depth=4,
+                          kernel_size=5)
+    
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs!")
         unet = DataParallel(unet)
@@ -218,4 +248,4 @@ if __name__ == "__main__":
             break
 
     
-    print("Model testing finished.")
+    print("Model testing finished.")"""
