@@ -4,6 +4,7 @@ import pathlib
 import os
 import numpy as np
 import librosa
+import torch
 
 
 def get_files_from_dir(dir_name: Union[str, pathlib.Path]) -> List[pathlib.Path]:
@@ -40,6 +41,61 @@ def split_audio(audio_data: np.ndarray, sr: int, overlap: float = 0.25) -> List[
         segments.append(last_segment)
     
     return segments
+
+
+
+def collate_fn(batch):
+    """
+    Custom collate function for batching a list of tuples (noisy, clean) including list of segments.
+    Flatten lists into a single lists of tensors
+    """
+    
+    # Unzip batch into noisy and clean data
+    input_seq, label_seq = zip(*batch)
+
+    # Flatten the list of segments
+    input_flat = [torch.tensor(segment) for input_item in input_seq for segment in input_item]
+    label_flat = [torch.tensor(segment) for label_item in label_seq for segment in label_item]
+
+    # Stack the individual segments into tensors
+    inputs_batch = torch.stack(input_flat)
+    labels_batch = torch.stack(label_flat)
+
+    return inputs_batch, labels_batch
+
+
+
+
+def collate_fn_new(batch):
+    # Find max length in the batch
+    max_len = max([len(x[0]) for x in batch]) # x[0] is input sequence
+    # Prepare lists for inputs and labels
+    inputs = []
+    labels = []
+    
+    # Pad each sequence to max_len
+    for input_seq, label_seq in batch:
+        curr_len = len(input_seq)
+        print(curr_len)
+        # Calculate padding
+        pad_len = max_len - curr_len
+        
+        # Pad the sequences
+        if pad_len > 0:
+            input_padded = np.pad(input_seq, (0, pad_len), mode='constant', constant_values=0)
+            label_padded = np.pad(label_seq, (0, pad_len), mode='constant', constant_values=0)
+        else:
+            input_padded = input_seq
+            label_padded = label_seq
+            
+        inputs.append(input_padded)
+        labels.append(label_padded)
+    
+    # Convert to torch tensors
+    inputs = torch.FloatTensor(np.stack(inputs))
+    labels = torch.FloatTensor(np.stack(labels))
+    
+    return inputs, labels
 
 
 def test_utils():
