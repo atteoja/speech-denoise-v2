@@ -13,19 +13,18 @@ import soundfile as sf
 import librosa
 from torch.optim.lr_scheduler import MultiStepLR
 
+import pathlib
 from model import SmallCleanUNet
-#from UNet_V1 import UNet
-#from UNet_tmp import UNet
 from dataset_class import SpeechTestDataset, SpeechTrainDataset
 from evaluation import get_psnr
-
-
-def format_time(seconds):
-    return str(timedelta(seconds=int(seconds)))
+from utils import get_files_from_dir
 
 
 def train(device, model, train_loader, val_loader,
-          epochs=200, lr=1e-3,
+          epochs=200,
+          criterion="l1",
+          optimizer="adam",
+          lr=1e-3,
           save_path="saved_models",
           loss_increase_min = 1e-2,
           patience = 5
@@ -35,8 +34,15 @@ def train(device, model, train_loader, val_loader,
         print(f"Using {torch.cuda.device_count()} GPUs!")
         model = DataParallel(model)
 
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
+    if optimizer == "adam":
+        optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
+    else:
+        optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
+
+    if criterion == "l1":
+        criterion = nn.L1Loss()
+    else:
+        criterion = nn.L1Loss()
 
     scheduler = MultiStepLR(optimizer=optimizer, milestones=[100], gamma=0.1)
 
@@ -79,6 +85,7 @@ def train(device, model, train_loader, val_loader,
                 inputs, labels = inputs.unsqueeze(1), labels.unsqueeze(1)
                 preds = model(inputs)
 
+
                 loss = criterion(preds, labels)
 
                 val_loss_epoch.append(loss.item())
@@ -91,6 +98,12 @@ def train(device, model, train_loader, val_loader,
         print('\n\n', f" *** Epoch {epoch:03d} ***\n Train loss: {train_loss:.3f}\n Validation loss: {val_loss:.3f}\n Learning rate: {optimizer.param_groups[0]['lr']}\n") #\n Time: {format_time(time.time() - epoch_start_time)}
             
         if epoch != 0 and epoch % 2 == 0:
+
+            prev_files = get_files_from_dir(checkpoint_path)
+            if len(prev_files) > 0:
+                for file in prev_files:
+                    pathlib.Path.unlink(file)
+
             model_checkpoint_name = checkpoint_path + f"/model_ckpt_{epoch+1}.pth"
             torch.save(model.state_dict(), model_checkpoint_name)
 
@@ -112,8 +125,7 @@ def train(device, model, train_loader, val_loader,
 
     return model
 
-def test(device, model, test_loader):
-    criterion = nn.MSELoss()
+def test(device, model, test_loader, criterion):
 
     test_losses = []
     test_psnrs = []
@@ -182,20 +194,21 @@ def main():
         device = torch.device("cuda")
         print(f"Using {n_gpu} GPU(s)")
 
-    train_dataset = SpeechTrainDataset(root_dir='.', sr=22250, features=False)
+    train_dataset = SpeechTrainDataset(root_dir='.')
 
-    # split the dataset into train and validation
-    train_size = int(0.9 * len(train_dataset))
+    train_size = int(0.8 * len(train_dataset))
     val_size = len(train_dataset) - train_size
 
     train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
 
-    batch_size = 32  # Base batch
+    batch_size = 32
+    criterion = 'l1'
+    optimizer = 'adam'
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    test_dataset = SpeechTestDataset(root_dir='.', sr=22250, features=False)
+    test_dataset = SpeechTestDataset(root_dir='.')
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
 
     print("\nData loaded. Train size: ", len(train_dataset), " Val size: ", len(val_dataset), " Test size: ", len(test_dataset), "\n")
@@ -210,10 +223,12 @@ def main():
                   train_loader=train_loader,
                   val_loader=val_loader,
                   epochs=200,
+                  criterion=criterion,
+                  optimizer=optimizer,
                   lr=1e-3)
     
     
-    test(device=device, model=unet, test_loader=test_loader)
+    test(device=device, model=unet, test_loader=test_loader, criterion=criterion)
 
 
 if __name__ == "__main__":

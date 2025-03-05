@@ -5,6 +5,7 @@ class EncoderLayer(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size):
         super(EncoderLayer, self).__init__()
 
+        self.bn = nn.BatchNorm1d(num_features=in_channels)
         self.conv1d = nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, stride=1)
         self.relu = nn.ReLU()
 
@@ -13,6 +14,7 @@ class EncoderLayer(nn.Module):
 
 
     def forward(self, x):
+        x = self.bn(x)
         x = self.conv1d(x)
         x = self.relu(x)
         x = self.conv1x1(x.unsqueeze(-1))
@@ -24,6 +26,7 @@ class DecoderLayer(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size):
         super(DecoderLayer, self).__init__()
         
+        self.bn = nn.BatchNorm1d(num_features=in_channels)
         self.conv1x1 = nn.Conv2d(in_channels=in_channels, out_channels=2*in_channels, kernel_size=1)
         self.glu = nn.GLU(dim=1) # the channel dim
 
@@ -31,6 +34,7 @@ class DecoderLayer(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, x):
+        x = self.bn(x)
         x = self.conv1x1(x.unsqueeze(-1))
         x = self.glu(x)
         x = self.up_conv1d(x.squeeze(-1))
