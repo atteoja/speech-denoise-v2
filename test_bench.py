@@ -8,7 +8,7 @@ from torchmetrics.audio import SignalDistortionRatio as SDR
 from tqdm import tqdm
 from model import SmallCleanUNet
 from dataset_class import SpeechTestDataset
-from evaluation import get_psnr
+from modules import get_psnr
 
 from traditional_methods import spectral_subtraction, apply_noisereduce
 
@@ -70,7 +70,6 @@ def test(device, model, test_loader, criterion, output_dir):
 
             predictions.append(preds.cpu().squeeze(0).squeeze(0).numpy())
 
-            # write the denoised audios
             if i < 5:
                 sf.write(f"{output_dir}/pred_{i}.wav", preds.cpu().squeeze(0).squeeze(0).numpy(), 16000)
                 sf.write(f"{output_dir}/trad_spec_{i}.wav", trad_spec_res.cpu().squeeze(0).squeeze(0).numpy(), 16000)
@@ -94,16 +93,13 @@ def test(device, model, test_loader, criterion, output_dir):
     print(f"Traditional spectral subtraction loss: {trad_spec_loss:.2f}, PSNR: {trad_spec_psnr:.2f}, SDR: {trad_spec_sdr:.2f}")
     print(f"Traditional noisereduce loss: {trad_nr_loss:.2f}, PSNR: {trad_nr_psnr:.2f}, SDR: {trad_nr_sdr:.2f}")
 
-    # return set of predictions
     return predictions
 
 
 def main():
-    # Define the device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     criterion = 'l1'
 
-    # Make sure to load the model with the same parameters as the training
     unet = SmallCleanUNet(in_channels=1,
                             out_channels=1,
                             depth=2,
@@ -111,18 +107,17 @@ def main():
     unet.to(device)
 
 
-    unet.load_state_dict(torch.load("saved_models/last_model_22epoch.pth")) # model path
+    unet.load_state_dict(torch.load("saved_models/last_model_22epoch.pth"))
 
-    # Load the test dataset
+
     test_dataset = SpeechTestDataset(root_dir='.')
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
-    # Define the output directory
+
     output_dir = "test_results"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # Test the model
     preds = test(device=device, model=unet, test_loader=test_loader, criterion=criterion, output_dir=output_dir)
 
     print(f"Preds len: {len(preds)}")

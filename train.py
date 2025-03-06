@@ -16,7 +16,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 import pathlib
 from model import SmallCleanUNet
 from dataset_class import SpeechTestDataset, SpeechTrainDataset
-from evaluation import get_psnr
+from modules import get_psnr, L1STFTLoss
 from utils import get_files_from_dir
 
 
@@ -45,6 +45,10 @@ def train(device, model, train_loader, val_loader,
         criterion = nn.L1Loss()
     elif criterion == "l2":
         criterion = nn.MSELoss()
+    elif criterion == "l1_stft":
+        criterion = L1STFTLoss(n_fft=2048,
+                                hop_length=512,
+                                use_log=True)
     else:
         criterion = nn.L1Loss()
 
@@ -135,6 +139,10 @@ def test(device, model, test_loader, criterion):
         criterion = nn.L1Loss()
     elif criterion == "l2":
         criterion = nn.MSELoss()
+    elif criterion == "l1_stft":
+        criterion = L1STFTLoss(n_fft=2048,
+                                hop_length=512,
+                                use_log=True)
     else:
         criterion = nn.L1Loss()
 
@@ -174,8 +182,8 @@ def main():
     device = None
 
     batch_size = 16
-    epochs = 2
-    criterion = 'l1'        # l1, l2
+    epochs = 4
+    criterion = 'l1_stft'        # l1, l2, l1_stft (L1 + L1 STFT loss)
     optimizer = 'adam'      # adam, adamw
     lr = 1e-3
 
@@ -186,10 +194,6 @@ def main():
         n_gpu = torch.cuda.device_count()
         device = torch.device("cuda")
         print(f"Using {n_gpu} GPU(s)")
-    elif torch.backends.mps.is_available():
-        if input("Use mps as device? (y/n): ") == "y":    
-            device = torch.device("mps")
-            print(f"Using MPS as device.")
     
     if device is None:
         device = torch.device("cpu")
@@ -203,15 +207,15 @@ def main():
 
     # Set training = True to train the model
     if training:
-        train_dataset = SpeechTrainDataset(root_dir='.')
+        train_dataset = SpeechTestDataset(root_dir='.')
 
         train_size = int(0.8 * len(train_dataset))
         val_size = len(train_dataset) - train_size
 
         train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
 
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
 
         print("\nData loaded. Train size: ", len(train_dataset), " Val size: ", len(val_dataset), "\n")
 
