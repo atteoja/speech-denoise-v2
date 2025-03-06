@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timedelta
 import soundfile as sf
 import librosa
-from torch.optim.lr_scheduler import MultiStepLR
+from torch.optim.lr_scheduler import MultiStepLR, StepLR
 
 import pathlib
 from model import SmallCleanUNet
@@ -26,8 +26,8 @@ def train(device, model, train_loader, val_loader,
           optimizer="adam",
           lr=1e-3,
           save_path="saved_models",
-          loss_increase_min = 1e-2,
-          patience = 5
+          loss_increase_min = 1e-4,
+          patience = 10
           ):
 
     if torch.cuda.device_count() > 1:
@@ -52,7 +52,9 @@ def train(device, model, train_loader, val_loader,
     else:
         criterion = nn.L1Loss()
 
-    scheduler = MultiStepLR(optimizer=optimizer, milestones=[25], gamma=0.1)
+    lr_updated = False
+    scheduler = StepLR(optimizer=optimizer, step_size=1, gamma=0.1)
+    #scheduler = MultiStepLR(optimizer=optimizer, milestones=[25], gamma=0.1)
 
     prev_loss = float(10000)
     patience_counter = 0
@@ -101,9 +103,9 @@ def train(device, model, train_loader, val_loader,
         train_loss = np.array(train_loss_epoch).mean()
         val_loss = np.array(val_loss_epoch).mean()
 
-        scheduler.step()
-
         print('\n\n', f" *** Epoch {epoch:03d} ***\n Train loss: {train_loss:.3f}\n Validation loss: {val_loss:.3f}\n Learning rate: {optimizer.param_groups[0]['lr']}\n") #\n Time: {format_time(time.time() - epoch_start_time)}
+
+        # scheduler.step()
 
         if epoch != 1 and epoch % 2 == 0:
 
@@ -123,8 +125,15 @@ def train(device, model, train_loader, val_loader,
         prev_loss = train_loss
         
         if patience_counter == patience:
-            print("Early stopping at epoch ", epoch, ".")
-            break
+            if lr_updated:
+                print("Early stopping at epoch ", epoch, ".")
+                break
+            else:
+                print("Reducing learning rate.")
+                scheduler.step()
+                lr_updated = True
+                patience_counter = 0
+
 
     if not os.path.exists(save_path):
         os.makedirs(save_path)
@@ -142,6 +151,7 @@ def test(device, model, test_loader, criterion):
     elif criterion == "l1_stft":
         criterion = L1STFTLoss(n_fft=2048,
                                 hop_length=512,
+                                win_length=1024,
                                 use_log=True)
     else:
         criterion = nn.L1Loss()

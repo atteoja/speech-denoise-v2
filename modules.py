@@ -13,6 +13,7 @@ class STFTLoss(nn.Module):
                  n_fft=1024, 
                  hop_length=512, 
                  window='hann',
+                 win_length=None,
                  mag_weight=1.0,
                  ph_weight=1.0,
                  use_log=False):
@@ -26,6 +27,11 @@ class STFTLoss(nn.Module):
             self.window = torch.hamming_window(n_fft)
         else:
             self.window = torch.hann_window(n_fft)
+
+        if win_length is None:
+            self.win_length = n_fft
+        else:
+            self.win_length = win_length
 
         self.mw = mag_weight
         self.phw = ph_weight
@@ -42,14 +48,14 @@ class STFTLoss(nn.Module):
                             n_fft=self.n_fft,
                             hop_length=self.hop_length, 
                             window=self.window,
-                            win_length=self.n_fft,
+                            win_length=self.win_length,
                             center=True,
                             return_complex=True)
         gt_stft = torch.stft(gt,
                             n_fft=self.n_fft,
                             hop_length=self.hop_length, 
                             window=self.window,
-                            win_length=self.n_fft,
+                            win_length=self.win_length,
                             center=True,
                             return_complex=True)
 
@@ -70,19 +76,12 @@ class L1STFTLoss(nn.Module):
     def __init__(self, 
                  n_fft=1024, 
                  hop_length=512, 
-                 window='hann_window',
+                 window='hann',
+                 win_length=None,
                  mag_weight=1.0,
                  ph_weight=1.0,
                  use_log=False):
         super(L1STFTLoss, self).__init__()
-        self.n_fft = n_fft
-        self.hop_length = hop_length
-        self.window = window
-
-        self.mw = mag_weight
-        self.phw = ph_weight
-
-        self.use_log = use_log
 
         self.l1_loss_fn = nn.L1Loss()
         self.stft_loss_fn = STFTLoss(n_fft=n_fft,
@@ -90,6 +89,7 @@ class L1STFTLoss(nn.Module):
                                      window=window,
                                      mag_weight=mag_weight,
                                      ph_weight=ph_weight,
+                                     win_length=win_length,
                                      use_log=use_log)
 
 
