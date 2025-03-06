@@ -181,8 +181,8 @@ def main():
     training = True
     device = None
 
-    batch_size = 16
-    epochs = 4
+    batch_size = 32
+    epochs = 100
     criterion = 'l1_stft'        # l1, l2, l1_stft (L1 + L1 STFT loss)
     optimizer = 'adam'      # adam, adamw
     lr = 1e-3
@@ -207,15 +207,15 @@ def main():
 
     # Set training = True to train the model
     if training:
-        train_dataset = SpeechTestDataset(root_dir='.')
+        train_dataset = SpeechTrainDataset(root_dir='.')
 
         train_size = int(0.8 * len(train_dataset))
         val_size = len(train_dataset) - train_size
 
         train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
 
-        train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
         print("\nData loaded. Train size: ", len(train_dataset), " Val size: ", len(val_dataset), "\n")
 
