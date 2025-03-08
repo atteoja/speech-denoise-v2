@@ -66,22 +66,22 @@ class SelfAttention(nn.Module):
         return output
 
 class SmallCleanUNet(nn.Module):
-    def __init__(self, in_channels=1, out_channels=1, depth=4, kernel_size=3):
+    def __init__(self, in_channels=1, out_channels=1, depth=4, kernel_size=5):
         super(SmallCleanUNet, self).__init__()
 
         # Encoder
-        self.encoder1 = EncoderLayer(in_channels= in_channels, out_channels= depth*in_channels, kernel_size= kernel_size+2)
-        self.encoder2 = EncoderLayer(in_channels= depth*in_channels, out_channels= 2*depth*in_channels, kernel_size= kernel_size+2)
+        self.encoder1 = EncoderLayer(in_channels= in_channels, out_channels= depth*in_channels, kernel_size= kernel_size)
+        self.encoder2 = EncoderLayer(in_channels= depth*in_channels, out_channels= 2*depth*in_channels, kernel_size= kernel_size)
         self.encoder3 = EncoderLayer(in_channels= 2*depth*in_channels, out_channels= 4*depth*in_channels, kernel_size= kernel_size)
 
         # Bottleneck with self-attention
         #self.bottleneck = SelfAttention(embed_dim=4*depth*in_channels, num_heads=8)
-        self.bottleneck = nn.Conv1d(in_channels= 4*depth*in_channels, out_channels= 4*depth*in_channels, kernel_size= 3, padding= 3//2)
+        self.bottleneck = nn.Conv1d(in_channels= 4*depth*in_channels, out_channels= 4*depth*in_channels, kernel_size=7, padding= 7//2)
 
         # Decoder
         self.decoder1 = DecoderLayer(in_channels= 8*depth*in_channels, out_channels= 2*depth*in_channels, kernel_size= kernel_size)
-        self.decoder2 = DecoderLayer(in_channels= 4*depth*in_channels, out_channels= depth*in_channels, kernel_size= kernel_size+2)
-        self.decoder3 = DecoderLayer(in_channels= 2*depth*in_channels, out_channels= 2*in_channels, kernel_size= kernel_size+2)
+        self.decoder2 = DecoderLayer(in_channels= 4*depth*in_channels, out_channels= depth*in_channels, kernel_size= kernel_size)
+        self.decoder3 = DecoderLayer(in_channels= 2*depth*in_channels, out_channels= 2*in_channels, kernel_size= kernel_size)
 
         self.out_conv = nn.Sequential(
             nn.Conv1d(in_channels=2*in_channels, out_channels=2*in_channels, kernel_size=3, padding=3//2),

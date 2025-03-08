@@ -56,7 +56,7 @@ def train(device, model, train_loader, val_loader,
     scheduler = StepLR(optimizer=optimizer, step_size=1, gamma=0.1)
     #scheduler = MultiStepLR(optimizer=optimizer, milestones=[25], gamma=0.1)
 
-    prev_loss = float(10000)
+    prev_loss = [float(10000)]
     patience_counter = 0
 
     checkpoint_path = "model_checkpoint"
@@ -103,6 +103,7 @@ def train(device, model, train_loader, val_loader,
         train_loss = np.array(train_loss_epoch).mean()
         val_loss = np.array(val_loss_epoch).mean()
 
+        #if epoch < 10 or epoch % 5 == 0:
         print('\n\n', f" *** Epoch {epoch:03d} ***\n Train loss: {train_loss:.3f}\n Validation loss: {val_loss:.3f}\n Learning rate: {optimizer.param_groups[0]['lr']}\n") #\n Time: {format_time(time.time() - epoch_start_time)}
 
         # scheduler.step()
@@ -117,12 +118,16 @@ def train(device, model, train_loader, val_loader,
             model_checkpoint_name = checkpoint_path + f"/model_ckpt_{epoch}.pth"
             torch.save(model.state_dict(), model_checkpoint_name)
 
-        if train_loss > prev_loss or abs(train_loss - prev_loss) < loss_increase_min:
+
+        if train_loss > np.mean(prev_loss) or abs(train_loss - np.mean(prev_loss)) < loss_increase_min:
             patience_counter += 1
         else:
             patience_counter = 0
         
-        prev_loss = train_loss
+        # keep prev_loss updated as 10 last losses
+        prev_loss.append(train_loss)
+        if len(prev_loss) > 10:
+            prev_loss.pop(0)
         
         if patience_counter == patience:
             if lr_updated:
@@ -192,7 +197,7 @@ def main():
     device = None
 
     batch_size = 32
-    epochs = 100
+    epochs = 200
     criterion = 'l1_stft'        # l1, l2, l1_stft (L1 + L1 STFT loss)
     optimizer = 'adam'      # adam, adamw
     lr = 1e-3
@@ -211,12 +216,12 @@ def main():
 
     unet = SmallCleanUNet(in_channels=1,
                           out_channels=1,
-                          depth=2,
-                          kernel_size=3)
+                          depth=5,
+                          kernel_size=5)
     unet.to(device)
 
     # Set training = True to train the model
-    if training:
+    if training:    
         train_dataset = SpeechTrainDataset(root_dir='.')
 
         train_size = int(0.8 * len(train_dataset))

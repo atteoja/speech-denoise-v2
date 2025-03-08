@@ -8,7 +8,7 @@ from torchmetrics.audio import SignalDistortionRatio as SDR
 from tqdm import tqdm
 from model import SmallCleanUNet
 from dataset_class import SpeechTestDataset
-from modules import get_psnr
+from modules import get_psnr, L1STFTLoss
 
 from traditional_methods import spectral_subtraction, apply_noisereduce
 
@@ -19,6 +19,10 @@ def test(device, model, test_loader, criterion, output_dir):
         criterion = nn.L1Loss()
     elif criterion == "l2":
         criterion = nn.MSELoss()
+    elif criterion == "l1_stft":
+        criterion = L1STFTLoss(n_fft=2048,
+                                hop_length=512,
+                                use_log=True)
     else:
         criterion = nn.L1Loss()
 
@@ -46,7 +50,7 @@ def test(device, model, test_loader, criterion, output_dir):
             preds = preds.squeeze(1)
             trad_spec_res = spectral_subtraction(inputs.squeeze(0).cpu().numpy())
             trad_nr_res = apply_noisereduce(inputs.squeeze(0).cpu().numpy())
-
+ 
             trad_spec_res = torch.tensor(trad_spec_res).to(device).unsqueeze(0)
             trad_nr_res = torch.tensor(trad_nr_res).to(device).unsqueeze(0)
 
@@ -66,15 +70,16 @@ def test(device, model, test_loader, criterion, output_dir):
             test_sdr.append(sdr_metric(preds.cpu(), labels.cpu()))
             trad_spec_sdr.append(sdr_metric(trad_spec_res.cpu(), labels.cpu()))
             trad_sdr.append(sdr_metric(trad_nr_res.cpu(), labels.cpu()))
+            
+            preds = preds.cpu().squeeze(0).squeeze(0).numpy()
 
-
-            predictions.append(preds.cpu().squeeze(0).squeeze(0).numpy())
+            predictions.append(preds)
 
             if i < 5:
-                sf.write(f"{output_dir}/pred_{i}.wav", preds.cpu().squeeze(0).squeeze(0).numpy(), 16000)
+                sf.write(f"{output_dir}/pred_{i}.wav", preds, 16000)
                 sf.write(f"{output_dir}/trad_spec_{i}.wav", trad_spec_res.cpu().squeeze(0).squeeze(0).numpy(), 16000)
                 sf.write(f"{output_dir}/trad_nr_{i}.wav", trad_nr_res.cpu().squeeze(0).squeeze(0).numpy(), 16000)
-                sf.write(f"{output_dir}/clean_{i}.wav", labels.cpu().squeeze(0).squeeze(0).numpy(), 16000)
+                sf.write(f"{output_dir}/ground_truth_{i}.wav", labels.cpu().squeeze(0).squeeze(0).numpy(), 16000)
                 sf.write(f"{output_dir}/noisy_{i}.wav", inputs.cpu().squeeze(0).squeeze(0).numpy(), 16000)
 
     test_loss = np.array(test_losses).mean()
@@ -89,7 +94,7 @@ def test(device, model, test_loader, criterion, output_dir):
     trad_nr_psnr = np.array(trad_psnrs).mean()
     trad_nr_sdr = np.array(trad_sdr).mean()
 
-    print(f"Test loss: {test_loss:.2f}, Test PSNR: {test_psnr:.2f}, Test SDR: {test_sdr:.2f}")
+    print(f"\nTest loss: {test_loss:.2f}, Test PSNR: {test_psnr:.2f}, Test SDR: {test_sdr:.2f}")
     print(f"Traditional spectral subtraction loss: {trad_spec_loss:.2f}, PSNR: {trad_spec_psnr:.2f}, SDR: {trad_spec_sdr:.2f}")
     print(f"Traditional noisereduce loss: {trad_nr_loss:.2f}, PSNR: {trad_nr_psnr:.2f}, SDR: {trad_nr_sdr:.2f}")
 
@@ -98,16 +103,16 @@ def test(device, model, test_loader, criterion, output_dir):
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    criterion = 'l1'
+    criterion = 'l1_stft'
 
     unet = SmallCleanUNet(in_channels=1,
                             out_channels=1,
-                            depth=2,
-                            kernel_size=3)
+                            depth=5,
+                            kernel_size=5)
     unet.to(device)
 
 
-    unet.load_state_dict(torch.load("saved_models/last_model_22epoch.pth"))
+    unet.load_state_dict(torch.load("saved_models/last_model.pth"))
 
 
     test_dataset = SpeechTestDataset(root_dir='.')
@@ -120,7 +125,7 @@ def main():
 
     preds = test(device=device, model=unet, test_loader=test_loader, criterion=criterion, output_dir=output_dir)
 
-    print(f"Preds len: {len(preds)}")
+    print(f"\nPreds len: {len(preds)}")
 
 
 if __name__ == "__main__":
@@ -129,3 +134,8 @@ if __name__ == "__main__":
 
 
 
+# d4 k5
+#** Epoch 200 ***
+# Train loss: 0.305
+# Validation loss: 0.305
+# Learning rate: 0.001

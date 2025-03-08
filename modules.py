@@ -28,6 +28,8 @@ class STFTLoss(nn.Module):
         else:
             self.window = torch.hann_window(n_fft)
 
+        self.window = self.window.to('cuda')
+        
         if win_length is None:
             self.win_length = n_fft
         else:
@@ -41,6 +43,7 @@ class STFTLoss(nn.Module):
         self.loss_fn = nn.L1Loss()
 
     def forward(self, pred, gt):
+        
         pred = pred.squeeze(1)
         gt = gt.squeeze(1)
 
