@@ -11,31 +11,51 @@ def spectral_subtraction(noisy_audio: np.ndarray, sr: int = 16000) -> np.ndarray
     """Applies the spectral subtraction to the noisy signal."""
     
     # Magnitude spectrum
-    noisy_stft = librosa.stft(noisy_audio)
+    noisy_stft = librosa.stft(
+        y=noisy_audio,
+        n_fft=2048,
+        hop_length=512,
+        window='hann',
+        )
     mag, phase = np.abs(noisy_stft), np.angle(noisy_stft)
 
     # Estimate that the first 0.5 seconds of the signal contains only noise
     noise_estimate = noisy_audio[:int(0.5 * sr)]
-    est_mag = np.abs(librosa.stft(noise_estimate))
+    est_mag = np.abs(librosa.stft(
+        y=noise_estimate,
+        n_fft=2048,
+        hop_length=512,
+        window='hann',
+        ))
     # Apply spectral subtraction
     magnitude_denoised = np.maximum(mag - est_mag.mean(axis=1, keepdims=True), 0)
 
     # Reconstruct denoised signal using original phase
     stft_denoised = magnitude_denoised * np.exp(1j * phase)
-    clean_audio = librosa.istft(stft_denoised)
+    clean_audio = librosa.istft(
+        stft_matrix=stft_denoised,
+        n_fft=2048,
+        hop_length=512,
+        window='hann',
+        )
 
     # Ensure the output length matches the input length
     if len(clean_audio) > len(noisy_audio):
         clean_audio = clean_audio[:len(noisy_audio)]
     else:
         clean_audio = np.pad(clean_audio, (0, len(noisy_audio) - len(clean_audio)), mode='constant')
-        
+
     return clean_audio
 
 
 def apply_noisereduce(noisy_audio: np.ndarray, sr:int = 16000) -> np.ndarray:
     """Apply the noisereduce library to the noisy audio."""
-    return nr.reduce_noise(y=noisy_audio, sr=16000)
+    return nr.reduce_noise(
+        y=noisy_audio, 
+        sr=sr,
+        n_fft=2048,
+        hop_length=512,
+        )
     
 
 def apply_denoising(output_dir: str, test_dataset: SpeechTestDataset, n: int = 10, sr: int = 48000):
