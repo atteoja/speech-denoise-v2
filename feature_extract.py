@@ -24,7 +24,6 @@ def extract_mel_spectrogram(audio_signal: np.ndarray,
                                                     hop_length=hop_length,
                                                     window=window,
                                                     )
-    # convert to log scale
     log_mel_spectrogram = librosa.power_to_db(mel_spectrogram, ref=np.max)
 
     return log_mel_spectrogram
@@ -43,24 +42,21 @@ def split_spectrum(audio_data: np.ndarray, sr: int = 44500, overlap: float = 0.5
 def main(dataset_root: pathlib.Path):
     splits = ["trainset_28spk_wav", "testset_wav"]
     prefixes = ["clean_", "noisy_"]
-    # Extract features for each split
+
     for prefix in prefixes:
         for split in splits:
-            # Get the dataset path
             dataset_path = dataset_root / f"{prefix}{split}"
 
-            # Check if the dataset path exists and is a directory
             if dataset_path.exists() and dataset_path.is_dir():
                 audio_paths = get_audio_files(dataset_path)
                 output_dir = dataset_root / f"{prefix}{split}_features"
-                # Overwrite existing feature files
+
                 if output_dir.exists():
                     for file in output_dir.iterdir():
-                        file.unlink()  # Remove existing feature files
+                        file.unlink()
                 else:
                     os.mkdir(output_dir)
                 
-                # Extract features for each audio file
                 print(f'Extracting features from {dataset_path} to {output_dir}')
                 #mel_specs = []
                 for audio_file in audio_paths:
