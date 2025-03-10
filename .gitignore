@@ -5,3 +5,4 @@ __pycache__/
 model_checkpoint/
 .DS_Store
 dataset/
+saved_models/
