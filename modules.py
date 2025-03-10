@@ -1,14 +1,19 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 def get_psnr(pred, gt, max_value=1.0):
+    """
+    Compute PSNR between signals
+    """
     mse = torch.mean(torch.pow(pred - gt, 2))
     return 20 * torch.log10(max_value / torch.sqrt(mse))
 
 
 class STFTLoss(nn.Module):
+    """
+    STFT loss
+    """
     def __init__(self, 
                  n_fft=1024, 
                  hop_length=512, 
@@ -74,8 +79,11 @@ class STFTLoss(nn.Module):
 
         return self.mw * mag_loss + self.phw * ph_loss
     
-# l1 + stft loss
+
 class L1STFTLoss(nn.Module):
+    """
+    Combination of L1 loss and STFT losss
+    """
     def __init__(self, 
                  n_fft=1024, 
                  hop_length=512, 
@@ -94,7 +102,6 @@ class L1STFTLoss(nn.Module):
                                      ph_weight=ph_weight,
                                      win_length=win_length,
                                      use_log=use_log)
-
 
     def forward(self, pred, gt):
         l1_loss = self.l1_loss_fn(pred, gt)

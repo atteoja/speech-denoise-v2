@@ -24,7 +24,7 @@ def get_audio_files(dir_name: Union[str, pathlib.Path]) -> List[pathlib.Path]:
 def get_audio_data(audio_file: Union[str, pathlib.Path], sr: int = 44500) -> Tuple[np.ndarray, float]:
     """Loads and returns the audio data from the `audio_file`. """
 
-    return librosa.core.load(path=audio_file, sr=16000, mono=True) # mono=True
+    return librosa.core.load(path=audio_file, sr=16000, mono=True)
 
 
 def split_audio(audio_data: np.ndarray, sr: int, overlap: float = 0.25) -> List[np.ndarray]:
@@ -33,10 +33,8 @@ def split_audio(audio_data: np.ndarray, sr: int, overlap: float = 0.25) -> List[
     step = int(sr * overlap)  # 0.5 seconds overlap
     segments = [audio_data[i:i + segment_length] for i in range(0, len(audio_data) - segment_length, step)]
     
-    # Handle the last segment 
     remaining_samples = len(audio_data) % segment_length
     if remaining_samples > 0:
-        # remaining samples + padding
         last_segment = np.pad(audio_data[-remaining_samples:], (0, segment_length - remaining_samples), mode='constant')
         segments.append(last_segment)
     
@@ -50,14 +48,11 @@ def collate_fn(batch):
     Flatten lists into a single lists of tensors
     """
     
-    # Unzip batch into noisy and clean data
     input_seq, label_seq = zip(*batch)
 
-    # Flatten the list of segments
     input_flat = [torch.tensor(segment) for input_item in input_seq for segment in input_item]
     label_flat = [torch.tensor(segment) for label_item in label_seq for segment in label_item]
 
-    # Stack the individual segments into tensors
     inputs_batch = torch.stack(input_flat)
     labels_batch = torch.stack(label_flat)
 
@@ -65,16 +60,13 @@ def collate_fn(batch):
 
 
 def test_utils():
-    # Test get_files_from_dir_with_pathlib
     test_dir = "noisy_testset_wav"
     files = get_files_from_dir(test_dir)
     print(f"Files in {test_dir}: {files}")
     
-    # Test get_audio_files_from_subdirs
     audio_files = get_audio_files(test_dir)
     print(f"Audio files in {test_dir} subdirectories: {audio_files}")
-    
-    # Test get_audio_file_data
+
     if audio_files:
         audio_data, sr = get_audio_data(audio_files[0])
         print(f"Audio data for {audio_files[0]}: {audio_data.shape}, Sampling rate: {sr}")

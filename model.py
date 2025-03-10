@@ -1,7 +1,11 @@
 import torch
 import torch.nn as nn
 
+
 class EncoderLayer(nn.Module):
+    """
+    Encoder layer of the UNet
+    """
     def __init__(self, in_channels, out_channels, kernel_size):
         super(EncoderLayer, self).__init__()
 
@@ -21,8 +25,12 @@ class EncoderLayer(nn.Module):
         x = self.glu(x)
 
         return x.squeeze(-1)
-    
+
+
 class DecoderLayer(nn.Module):
+    """
+    Decoder layer of the UNet
+    """
     def __init__(self, in_channels, out_channels, kernel_size):
         super(DecoderLayer, self).__init__()
         
@@ -42,7 +50,7 @@ class DecoderLayer(nn.Module):
 
         return x
 
-    
+
 class SelfAttention(nn.Module):
     def __init__(self, embed_dim, num_heads):
         super(SelfAttention, self).__init__()
@@ -53,19 +61,23 @@ class SelfAttention(nn.Module):
         self.norm2 = nn.LayerNorm(embed_dim)
 
     def forward(self, x):
-        x = x.permute(2, 0, 1)  # T, B, C
+        x = x.permute(2, 0, 1)
 
-        attn_output, _ = self.attention(x, x, x)  # T, B, C
+        attn_output, _ = self.attention(x, x, x)
         x = self.norm1(x + attn_output)
 
-        linear_output = self.linear(x)  # T, B, C
+        linear_output = self.linear(x)
         x = self.norm2(x + linear_output)
 
-        output = x.permute(1, 2, 0)  # B, C, T
+        output = x.permute(1, 2, 0)
 
         return output
 
+
 class SmallCleanUNet(nn.Module):
+    """
+    UNet model
+    """
     def __init__(self, in_channels=1, out_channels=1, depth=4, kernel_size=5):
         super(SmallCleanUNet, self).__init__()
 
@@ -74,8 +86,7 @@ class SmallCleanUNet(nn.Module):
         self.encoder2 = EncoderLayer(in_channels= depth*in_channels, out_channels= 2*depth*in_channels, kernel_size= kernel_size)
         self.encoder3 = EncoderLayer(in_channels= 2*depth*in_channels, out_channels= 4*depth*in_channels, kernel_size= kernel_size)
 
-        # Bottleneck with self-attention
-        #self.bottleneck = SelfAttention(embed_dim=4*depth*in_channels, num_heads=8)
+        # Bottleneck
         self.bottleneck = nn.Conv1d(in_channels= 4*depth*in_channels, out_channels= 4*depth*in_channels, kernel_size=7, padding= 7//2)
 
         # Decoder

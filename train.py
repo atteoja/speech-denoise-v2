@@ -2,16 +2,12 @@ import torch
 import torch.nn as nn
 import numpy as np
 import os
-import torch.nn.functional as F
 from torch.utils.data import random_split
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torch.nn.parallel import DataParallel
-import time
-from datetime import datetime, timedelta
 import soundfile as sf
-import librosa
-from torch.optim.lr_scheduler import MultiStepLR, StepLR
+from torch.optim.lr_scheduler import StepLR
 
 import pathlib
 from model import SmallCleanUNet
@@ -64,7 +60,6 @@ def train(device, model, train_loader, val_loader,
         os.makedirs(checkpoint_path)
     
     for epoch in tqdm(range(1, epochs+1)):
-        #epoch_start_time = time.time()
         train_loss_epoch = []
         val_loss_epoch = []
 
@@ -103,7 +98,6 @@ def train(device, model, train_loader, val_loader,
         train_loss = np.array(train_loss_epoch).mean()
         val_loss = np.array(val_loss_epoch).mean()
 
-        #if epoch < 10 or epoch % 5 == 0:
         print('\n\n', f" *** Epoch {epoch:03d} ***\n Train loss: {train_loss:.3f}\n Validation loss: {val_loss:.3f}\n Learning rate: {optimizer.param_groups[0]['lr']}\n") #\n Time: {format_time(time.time() - epoch_start_time)}
 
         # scheduler.step()
@@ -124,7 +118,6 @@ def train(device, model, train_loader, val_loader,
         else:
             patience_counter = 0
         
-        # keep prev_loss updated as 10 last losses
         prev_loss.append(train_loss)
         if len(prev_loss) > 10:
             prev_loss.pop(0)
@@ -193,16 +186,17 @@ def main():
 
     # DEFINE HYPERPARAMS
 
-    training = True
-    device = None
+    training = True             # Set to True to train the model         
 
     batch_size = 32
     epochs = 200
-    criterion = 'l1_stft'        # l1, l2, l1_stft (L1 + L1 STFT loss)
-    optimizer = 'adam'      # adam, adamw
+    criterion = 'l1_stft'       # l1, l2, l1_stft (L1 + L1 STFT loss)
+    optimizer = 'adam'          # adam, adamw
     lr = 1e-3
 
     # HYPERPARAMS END
+
+    device = None               # do not modify      
 
 
     if torch.cuda.is_available():
@@ -220,7 +214,6 @@ def main():
                           kernel_size=5)
     unet.to(device)
 
-    # Set training = True to train the model
     if training:    
         train_dataset = SpeechTrainDataset(root_dir='.')
 
